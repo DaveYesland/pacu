@@ -3,6 +3,8 @@ import argparse
 import json
 import re
 import botocore
+import os
+import shutil
 
 from botocore.exceptions import ClientError
 
@@ -229,7 +231,7 @@ def main(args, pacu_main: 'Main'):
                         else:
                             print('      {}'.format(error.response['Error']['Code']))
                         role['PermissionsConfirmed'] = False
-                    role = parse_document(document, role)
+                    role = parse_document(document, role, f'role-{role["RoleName"]}')
 
                 # Get attached role policies
                 attached_policies = []
@@ -350,7 +352,7 @@ def main(args, pacu_main: 'Main'):
                             else:
                                 print('      {}'.format(error.response['Error']['Code']))
                             user['PermissionsConfirmed'] = False
-                        user = parse_document(document, user)
+                        user = parse_document(document, user, f'user-{user["UserName"]}')
 
                     # Get attached group policies
                     attached_policies = []
@@ -416,7 +418,7 @@ def main(args, pacu_main: 'Main'):
                         else:
                             print('      {}'.format(error.response['Error']['Code']))
                         user['PermissionsConfirmed'] = False
-                    user = parse_document(document, user)
+                    user = parse_document(document, user, f'user-{user["UserName"]}')
 
                 # Get attached user policies
                 attached_policies = []
@@ -490,12 +492,17 @@ def summary(data, pacu_main):
 
 def parse_attached_policies(client, attached_policies, user):
     """ Pull permissions from each policy document. """
+    try:
+        principal_name = f'user-{user["UserName"]}'
+    except KeyError:
+        principal_name = f'role-{user["RoleName"]}'
+
     for policy in attached_policies:
         document = get_attached_policy(client, policy['PolicyArn'])
         if document is False:
             user['PermissionsConfirmed'] = False
         else:
-            user = parse_document(document, user)
+            user = parse_document(document, user, principal_name)
     return user
 
 
@@ -537,10 +544,37 @@ def get_attached_policy(client, policy_arn):
         return False
 
 
-def parse_document(document, user):
+def parse_document(document, user, principal_type_name):
     """ Loop permissions, resources, and conditions """
     if isinstance(document['Statement'], dict):
         document['Statement'] = [document['Statement']]
+
+    # START This is to support the iam__enum_query module
+    # it will save the policy statements to a directory to be queried later
+    iam_query_data_dir = f'{downloads_dir()}/iam_query_data/'
+    iam_query_data_path = f'{downloads_dir()}/iam_query_data/{principal_type_name}.json'
+
+    # Clear out the data if this is a new or first run
+    if not hasattr(parse_document, "new_run"):
+        parse_document.new_run = True
+        if os.path.exists(iam_query_data_dir):
+            shutil.rmtree(iam_query_data_dir)
+
+    # Create the iam__enum_query data directory if it doesn't exist
+    if not os.path.exists(iam_query_data_dir):
+        os.makedirs(iam_query_data_dir)
+
+    # Parse previous iam__enum_query data if it exists
+    if os.path.exists(iam_query_data_path):
+        with open(iam_query_data_path, 'r') as f:
+            statements_for_principal = json.load(f)
+        statements_for_principal += (document['Statement'])
+    else:
+        statements_for_principal = document['Statement']
+
+    with open(iam_query_data_path, 'w+') as f:
+        json.dump(statements_for_principal, f, indent=2, default=str)
+    # END iam__query support
 
     for statement in document['Statement']:
 
@@ -567,7 +601,7 @@ def parse_document(document, user):
                                   "and our recorded permissions on it will likely be incomplete.".format(identity))
 
                     if 'Condition' in statement:
-                            user['Permissions']['Allow'][action]['Conditions'].append(statement['Condition'])
+                        user['Permissions']['Allow'][action]['Conditions'].append(statement['Condition'])
                     user['Permissions']['Allow'][action]['Resources'] = list(set(user['Permissions']['Allow'][action]['Resources']))  # Remove duplicate resources
 
             elif 'Action' in statement and isinstance(statement['Action'], str):
