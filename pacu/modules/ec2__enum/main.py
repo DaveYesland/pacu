@@ -97,8 +97,21 @@ def main(args, pacu_main):
     print = pacu_main.print
     get_regions = pacu_main.get_regions
 
-    if args.instances is False and args.security_groups is False and args.elastic_ips is False and args.public_ips is False and args.customer_gateways is False and args.dedicated_hosts is False and args.network_acls is False and args.nat_gateways is False and args.network_interfaces is False and args.route_tables is False and args.subnets is False and args.vpcs is False and args.vpc_endpoints is False and args.launch_templates is False:
-        args.instances = args.security_groups = args.elastic_ips = args.public_ips = args.customer_gateways = args.dedicated_hosts = args.network_acls = args.nat_gateways = args.network_interfaces = args.route_tables = args.subnets = args.vpcs = args.vpc_endpoints = args.launch_templates = True
+    if not any([vars(args)[k] for k in vars(args).keys() if vars(args)[k] is True]):
+        args.instances = True
+        args.security_groups = True
+        args.elastic_ips = True
+        args.public_ips = True
+        args.customer_gateways = True
+        args.dedicated_hosts = True
+        args.network_acls = True
+        args.nat_gateways = True
+        args.network_interfaces = True
+        args.route_tables = True
+        args.subnets = True
+        args.vpcs = True
+        args.vpc_endpoints = True
+        args.launch_templates = True
 
     if args.regions is None:
         regions = get_regions('ec2')
@@ -140,7 +153,7 @@ def main(args, pacu_main):
         vpc_endpoints = []
         launch_templates = []
 
-        if any([args.instances, args.security_groups, args.elastic_ips, args.public_ips, args.customer_gateways, args.dedicated_hosts, args.network_acls, args.nat_gateways, args.network_interfaces, args.route_tables, args.subnets, args.vpcs, args.vpc_endpoints, args.launch_templates]):
+        if any([vars(args)[k] for k in vars(args).keys() if vars(args)[k] is True]):
             print('Starting region {}...'.format(region))
         client = pacu_main.get_boto3_client('ec2', region)
 
@@ -547,7 +560,7 @@ def main(args, pacu_main):
     # Add regions to gathered_data for summary output
     gathered_data['regions'] = regions
 
-    if any([args.instances, args.security_groups, args.elastic_ips, args.customer_gateways, args.dedicated_hosts, args.network_acls, args.nat_gateways, args.network_interfaces, args.route_tables, args.subnets, args.vpcs, args.vpc_endpoints, args.launch_templates]):
+    if any([vars(args)[k] for k in vars(args).keys() if vars(args)[k] is True]):
         return gathered_data
     else:
         print('No data successfully enumerated.\n')
