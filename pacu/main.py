@@ -666,6 +666,7 @@ class Main:
             self.get_boto_session()
         else:
             print('  No keys imported.')
+            return False
 
     def import_awscli_key(self, profile_name: str) -> None:
         try:
@@ -675,9 +676,12 @@ class Main:
                           session_token=creds.token)
             self.print('  Imported keys as "imported-{}"'.format(profile_name))
         except botocore.exceptions.ProfileNotFound:
-            self.print('\n  Did not find the AWS CLI profile: {}\n'.format(profile_name))
-            boto3_session = boto3.session.Session()
-            print('  Profiles that are available:\n    {}\n'.format('\n    '.join(boto3_session.available_profiles)))
+            if not profile_name:
+                self.import_awscli_key_default()
+            else:
+                self.print('\n  Did not find the AWS CLI profile: {}\n'.format(profile_name))
+                boto3_session = boto3.session.Session()
+                print('  Profiles that are available:\n    {}\n'.format('\n    '.join(boto3_session.available_profiles)))
 
     def run_aws_cli_command(self, command: List[str]) -> None:
         try:
@@ -1887,7 +1891,7 @@ Version: {self.get_pacu_version()}
         parser.add_argument('--activate-session', action='store_true', help='activate session, use session arg to set session name')
         parser.add_argument('--new-session', required=False, default=None, help='<session name>', metavar='')
         parser.add_argument('--set-keys', required=False, default=None, help='alias, access id, secret key, token', metavar='')
-        parser.add_argument('--import-keys', required=False, default=None, help='AWS profile name to import keys from', metavar='')
+        parser.add_argument('--import-keys', nargs='?', const=False, default=None, help='AWS profile name to import keys from')
         parser.add_argument('--module-name', required=False, default=None, help='<module name>', metavar='')
         parser.add_argument('--data', required=False, default=None, help='<service name/all>', metavar='')
         parser.add_argument('--module-args', default=None, help='<--module-args=\'--regions us-east-1,us-east-1\'>', metavar='')
